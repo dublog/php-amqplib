@@ -3,7 +3,9 @@ test:
 	./vendor/bin/phpunit
 .PHONY: docs
 docs:
-	./vendor/bin/phpdoc --template=responsive-twig --defaultpackagename=PhpAmqpLib --title='php-amqplib' -d ./PhpAmqpLib -t ./docs
+	wget -qN https://github.com/phpDocumentor/phpDocumentor2/releases/download/v2.9.0/phpDocumentor.phar
+	rm -rf ./docs/*
+	php -d error_reporting=0 ./phpDocumentor.phar run -q --force --template=clean --defaultpackagename=PhpAmqpLib --title='php-amqplib' -d ./PhpAmqpLib -t ./docs
 .PHONY: benchmark
 benchmark:
 	@echo "Publishing 4000 msgs with 1KB of content:"

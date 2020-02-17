@@ -1,5 +1,7 @@
 <?php
 
+use PhpAmqpLib\Exchange\AMQPExchangeType;
+
 include(__DIR__ . '/config.php');
 
 /**
@@ -83,7 +85,6 @@ class Consumer
             default:
                 break;
         }
-        return;
     }
 
     /**
@@ -125,14 +126,19 @@ class Consumer
      */
     public function start()
     {
-        echo 'Starting consumer.' . PHP_EOL;
+        if ($this->restart) {
+            echo 'Restarting consumer.' . PHP_EOL;
+            $this->restart = false;
+        } else {
+            echo 'Starting consumer.' . PHP_EOL;
+        }
 
         $exchange = 'router';
         $queue    = 'msgs';
 
         $this->channel = $this->connection->channel();
         $this->channel->queue_declare($queue, false, true, false, false);
-        $this->channel->exchange_declare($exchange, 'direct', false, true, false);
+        $this->channel->exchange_declare($exchange, AMQPExchangeType::DIRECT, false, true, false);
         $this->channel->queue_bind($queue, $exchange);
         $this->channel->basic_consume(
             $queue,
@@ -147,7 +153,7 @@ class Consumer
         );
 
         echo 'Enter wait.' . PHP_EOL;
-        while (count($this->channel->callbacks)) {
+        while ($this->channel->is_consuming()) {
             $this->channel->wait();
         }
         echo 'Exit wait.' . PHP_EOL;
@@ -158,9 +164,8 @@ class Consumer
      */
     public function restart()
     {
-        echo 'Restarting consumer.' . PHP_EOL;
         $this->stopSoft();
-        $this->start();
+        $this->restart = true;
     }
 
     /**
@@ -192,6 +197,11 @@ class Consumer
         $this->channel->basic_cancel($this->consumerTag, false, true);
     }
 
+    public function shouldRestart()
+    {
+        return $this->restart;
+    }
+
     /**
      * Current connection
      *
@@ -212,7 +222,14 @@ class Consumer
      * @var string
      */
     protected $consumerTag = 'consumer';
+
+    /**
+     * @var bool
+     */
+    protected $restart = false;
 }
 
 $consumer = new Consumer();
-$consumer->start();
+do {
+    $consumer->start();
+} while ($consumer->shouldRestart());

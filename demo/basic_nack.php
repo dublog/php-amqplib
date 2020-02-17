@@ -9,6 +9,7 @@
 include(__DIR__ . '/config.php');
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exchange\AMQPExchangeType;
 
 $exchange = 'router';
 $queue = 'msgs';
@@ -18,7 +19,7 @@ $connection = new AMQPStreamConnection(HOST, PORT, USER, PASS, VHOST);
 $channel = $connection->channel();
 
 $channel->queue_declare($queue, false, true, false, false);
-$channel->exchange_declare($exchange, 'direct', false, true, false);
+$channel->exchange_declare($exchange, AMQPExchangeType::DIRECT, false, true, false);
 $channel->queue_bind($queue, $exchange);
 
 /**
@@ -53,6 +54,6 @@ function shutdown($channel, $connection)
 register_shutdown_function('shutdown', $channel, $connection);
 
 // Loop as long as the channel has callbacks registered
-while (count($channel->callbacks)) {
+while ($channel->is_consuming()) {
     $channel->wait();
 }

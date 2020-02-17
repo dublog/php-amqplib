@@ -1,6 +1,7 @@
 <?php
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exchange\AMQPExchangeType;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
 
@@ -22,7 +23,7 @@ $channel = $connection->channel();
  * @return mixed|null
  */
 $channel->exchange_declare('delayed_exchange', 'x-delayed-message', false, true, false, false, false, new AMQPTable(array(
-   "x-delayed-type" => "fanout"
+   "x-delayed-type" => AMQPExchangeType::FANOUT
 )));
 
 /**
@@ -54,20 +55,20 @@ function process_message(AMQPMessage $message)
     $headers = $message->get('application_headers');
     $nativeData = $headers->getNativeData();
     var_dump($nativeData['x-delay']);
-    $message->delivery_info['channel']->basic_nack($message->delivery_info['delivery_tag']);
+    $message->delivery_info['channel']->basic_ack($message->delivery_info['delivery_tag']);
 }
 
 /*
     queue: Queue from where to get the messages
     consumer_tag: Consumer identifier
     no_local: Don't receive messages published by this consumer.
-    no_ack: Tells the server if the consumer will acknowledge the messages.
+    no_ack: If set to true, automatic acknowledgement mode will be used by this consumer. See https://www.rabbitmq.com/confirms.html for details.
     exclusive: Request exclusive consumer access, meaning only this consumer can access the queue
     nowait:
     callback: A PHP Callback
 */
 
-$channel->basic_consume('delayed_queue', '', false, true, false, false, 'process_message');
+$channel->basic_consume('delayed_queue', '', false, false, false, false, 'process_message');
 
 /**
  * @param \PhpAmqpLib\Channel\AMQPChannel $channel
@@ -82,6 +83,6 @@ function shutdown($channel, $connection)
 register_shutdown_function('shutdown', $channel, $connection);
 
 // Loop as long as the channel has callbacks registered
-while (count($channel->callbacks)) {
+while ($channel->is_consuming()) {
     $channel->wait();
 }

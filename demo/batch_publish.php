@@ -7,7 +7,9 @@
 include(__DIR__ . '/config.php');
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exchange\AMQPExchangeType;
 use PhpAmqpLib\Message\AMQPMessage;
+use PhpAmqpLib\Exception\AMQPConnectionBlockedException;
 
 $exchange = 'bench_exchange';
 $queue = 'bench_queue';
@@ -17,7 +19,7 @@ $channel = $connection->channel();
 
 $channel->queue_declare($queue, false, false, false, false);
 
-$channel->exchange_declare($exchange, 'direct', false, false, false);
+$channel->exchange_declare($exchange, AMQPExchangeType::DIRECT, false, false, false);
 
 $channel->queue_bind($queue, $exchange);
 
@@ -47,7 +49,14 @@ for ($i = 0; $i < $max; $i++) {
     $channel->batch_basic_publish($message, $exchange);
 
     if ($i % $batch == 0) {
-        $channel->publish_batch();
+        try {
+            $channel->publish_batch();
+        } catch (AMQPConnectionBlockedException $exception) {
+            do {
+                sleep(10);
+            } while ($connection->isBlocked());
+            $channel->publish_batch();
+        }
     }
 }
 

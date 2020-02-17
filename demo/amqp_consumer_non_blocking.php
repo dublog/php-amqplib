@@ -2,6 +2,7 @@
 
 include(__DIR__ . '/config.php');
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exchange\AMQPExchangeType;
 
 $exchange = 'router';
 $queue = 'msgs';
@@ -33,7 +34,7 @@ $channel->queue_declare($queue, false, true, false, false);
     auto_delete: false //the exchange won't be deleted once the channel is closed.
 */
 
-$channel->exchange_declare($exchange, 'direct', false, true, false);
+$channel->exchange_declare($exchange, AMQPExchangeType::DIRECT, false, true, false);
 
 $channel->queue_bind($queue, $exchange);
 
@@ -58,7 +59,7 @@ function process_message($message)
     queue: Queue from where to get the messages
     consumer_tag: Consumer identifier
     no_local: Don't receive messages published by this consumer.
-    no_ack: Tells the server if the consumer will acknowledge the messages.
+    no_ack: If set to true, automatic acknowledgement mode will be used by this consumer. See https://www.rabbitmq.com/confirms.html for details.
     exclusive: Request exclusive consumer access, meaning only this consumer can access the queue
     nowait:
     callback: A PHP Callback
@@ -79,13 +80,8 @@ function shutdown($channel, $connection)
 register_shutdown_function('shutdown', $channel, $connection);
 
 // Loop as long as the channel has callbacks registered
-while (count($channel->callbacks)) {
-    $read = array($connection->getSocket()); // add here other sockets that you need to attend
-    $write = null;
-    $except = null;
-    if (false === ($changeStreamsCount = stream_select($read, $write, $except, 60))) {
-        /* Error handling */
-    } elseif ($changeStreamsCount > 0 || $channel->hasPendingMethods()) {
-        $channel->wait();
-    }
+while ($channel->is_consuming()) {
+    $channel->wait(null, true);
+    // do something else
+    usleep(300000);
 }

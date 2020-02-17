@@ -5,6 +5,7 @@
 
 include(__DIR__ . '/config.php');
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exchange\AMQPExchangeType;
 
 $exchange = 'fanout_example_exchange';
 $queue = 'fanout_group_1';
@@ -30,7 +31,7 @@ $channel->queue_declare($queue, false, false, false, true);
     auto_delete: true //the exchange will be deleted once the channel is closed.
 */
 
-$channel->exchange_declare($exchange, 'fanout', false, false, true);
+$channel->exchange_declare($exchange, AMQPExchangeType::FANOUT, false, false, true);
 
 $channel->queue_bind($queue, $exchange);
 
@@ -55,7 +56,7 @@ function process_message($message)
     queue: Queue from where to get the messages
     consumer_tag: Consumer identifier
     no_local: Don't receive messages published by this consumer.
-    no_ack: Tells the server if the consumer will acknowledge the messages.
+    no_ack: If set to true, automatic acknowledgement mode will be used by this consumer. See https://www.rabbitmq.com/confirms.html for details.
     exclusive: Request exclusive consumer access, meaning only this consumer can access the queue
     nowait: don't wait for a server response. In case of error the server will raise a channel
             exception
@@ -77,6 +78,6 @@ function shutdown($channel, $connection)
 register_shutdown_function('shutdown', $channel, $connection);
 
 // Loop as long as the channel has callbacks registered
-while (count($channel->callbacks)) {
+while ($channel->is_consuming()) {
     $channel->wait();
 }
